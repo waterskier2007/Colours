@@ -17,32 +17,32 @@ public typealias Color = NSColor
 
 public extension Color {
     // MARK: - Closure
-    typealias TransformBlock = CGFloat -> CGFloat
+    typealias TransformBlock = (CGFloat) -> CGFloat
     
     // MARK: - Enums
     enum ColorScheme:Int {
-        case Analagous = 0, Monochromatic, Triad, Complementary
+        case analagous = 0, monochromatic, triad, complementary
     }
     
     enum ColorFormulation:Int {
-        case RGBA = 0, HSBA, LAB, CMYK
+        case rgba = 0, hsba, lab, cmyk
     }
     
     enum ColorDistance:Int {
-        case CIE76 = 0, CIE94, CIE2000
+        case cie76 = 0, cie94, cie2000
     }
     
     enum ColorComparison:Int {
-        case Darkness = 0, Lightness, Desaturated, Saturated, Red, Green, Blue
+        case darkness = 0, lightness, desaturated, saturated, red, green, blue
     }
     
     
     // MARK: - Color from Hex/RGBA/HSBA/CIE_LAB/CMYK
     convenience init(hex: String) {
         var rgbInt: UInt64 = 0
-        let newHex = hex.stringByReplacingOccurrencesOfString("#", withString: "")
-        let scanner = NSScanner(string: newHex)
-        scanner.scanHexLongLong(&rgbInt)
+        let newHex = hex.replacingOccurrences(of: "#", with: "")
+        let scanner = Scanner(string: newHex)
+        scanner.scanHexInt64(&rgbInt)
         let r: CGFloat = CGFloat((rgbInt & 0xFF0000) >> 16)/255.0
         let g: CGFloat = CGFloat((rgbInt & 0x00FF00) >> 8)/255.0
         let b: CGFloat = CGFloat(rgbInt & 0x0000FF)/255.0
@@ -106,8 +106,11 @@ public extension Color {
     }
     
     func rgba() -> (r: CGFloat, g: CGFloat, b: CGFloat, a: CGFloat) {
-        let components = CGColorGetComponents(self.CGColor)
-        let numberOfComponents = CGColorGetNumberOfComponents(self.CGColor)
+        guard let components = self.cgColor.components else {
+            //FIXME: Fallback to black
+            return (0, 0, 0, 1)
+        }
+        let numberOfComponents = self.cgColor.numberOfComponents
 
         switch numberOfComponents {
         case 4:
@@ -126,7 +129,7 @@ public extension Color {
         var b: CGFloat = 0
         var a: CGFloat = 0
         
-        if self.respondsToSelector("getHue:saturation:brightness:alpha:") && CGColorGetNumberOfComponents(self.CGColor) == 4 {
+        if self.responds(to: #selector(Color.getHue(_:saturation:brightness:alpha:))) && self.cgColor.numberOfComponents == 4 {
             self.getHue(&h, saturation: &s, brightness: &b, alpha: &a)
         }
         
@@ -254,15 +257,15 @@ public extension Color {
     
     
     // MARK: - Lighten/Darken Color
-    func lightenedColor(percentage: CGFloat) -> Color {
+    func lightenedColor(_ percentage: CGFloat) -> Color {
         return modifiedColor(percentage + 1.0)
     }
     
-    func darkenedColor(percentage: CGFloat) -> Color {
+    func darkenedColor(_ percentage: CGFloat) -> Color {
         return modifiedColor(1.0 - percentage)
     }
     
-    private func modifiedColor(percentage: CGFloat) -> Color {
+    fileprivate func modifiedColor(_ percentage: CGFloat) -> Color {
         let hsbaT = hsba()
         return Color(hsba: (hsbaT.h, hsbaT.s, hsbaT.b * percentage, hsbaT.a))
     }
@@ -272,7 +275,7 @@ public extension Color {
     func blackOrWhiteContrastingColor() -> Color {
         let rgbaT = rgba()
         let value = 1 - ((0.299 * rgbaT.r) + (0.587 * rgbaT.g) + (0.114 * rgbaT.b));
-        return value < 0.5 ? Color.blackColor() : Color.whiteColor()
+        return value < 0.5 ? Color.black : Color.white
     }
     
     
@@ -285,41 +288,41 @@ public extension Color {
     
     
     // MARK: - Color Scheme
-    func colorScheme(type: ColorScheme) -> [Color] {
+    func colorScheme(_ type: ColorScheme) -> [Color] {
         switch (type) {
-        case .Analagous:
+        case .analagous:
             return Color.analgousColors(self.hsba())
-        case .Monochromatic:
+        case .monochromatic:
             return Color.monochromaticColors(self.hsba())
-        case .Triad:
+        case .triad:
             return Color.triadColors(self.hsba())
         default:
             return Color.complementaryColors(self.hsba())
         }
     }
     
-    private class func analgousColors(hsbaT: (h: CGFloat, s: CGFloat, b: CGFloat, a: CGFloat)) -> [Color] {
+    fileprivate class func analgousColors(_ hsbaT: (h: CGFloat, s: CGFloat, b: CGFloat, a: CGFloat)) -> [Color] {
         return [Color(hsba: (self.addDegree(30, staticDegree: hsbaT.h*360)/360.0, hsbaT.s-0.05, hsbaT.b-0.1, hsbaT.a)),
                 Color(hsba: (self.addDegree(15, staticDegree: hsbaT.h*360)/360.0, hsbaT.s-0.05, hsbaT.b-0.05, hsbaT.a)),
                 Color(hsba: (self.addDegree(-15, staticDegree: hsbaT.h*360)/360.0, hsbaT.s-0.05, hsbaT.b-0.05, hsbaT.a)),
                 Color(hsba: (self.addDegree(-30, staticDegree: hsbaT.h*360)/360.0, hsbaT.s-0.05, hsbaT.b-0.1, hsbaT.a))]
     }
     
-    private class func monochromaticColors(hsbaT: (h: CGFloat, s: CGFloat, b: CGFloat, a: CGFloat)) -> [Color] {
+    fileprivate class func monochromaticColors(_ hsbaT: (h: CGFloat, s: CGFloat, b: CGFloat, a: CGFloat)) -> [Color] {
         return [Color(hsba: (hsbaT.h, hsbaT.s/2, hsbaT.b/3, hsbaT.a)),
                 Color(hsba: (hsbaT.h, hsbaT.s, hsbaT.b/2, hsbaT.a)),
                 Color(hsba: (hsbaT.h, hsbaT.s/3, 2*hsbaT.b/3, hsbaT.a)),
                 Color(hsba: (hsbaT.h, hsbaT.s, 4*hsbaT.b/5, hsbaT.a))]
     }
     
-    private class func triadColors(hsbaT: (h: CGFloat, s: CGFloat, b: CGFloat, a: CGFloat)) -> [Color] {
+    fileprivate class func triadColors(_ hsbaT: (h: CGFloat, s: CGFloat, b: CGFloat, a: CGFloat)) -> [Color] {
         return [Color(hsba: (self.addDegree(120, staticDegree: hsbaT.h*360)/360.0, 2*hsbaT.s/3, hsbaT.b-0.05, hsbaT.a)),
                 Color(hsba: (self.addDegree(120, staticDegree: hsbaT.h*360)/360.0, hsbaT.s, hsbaT.b, hsbaT.a)),
                 Color(hsba: (self.addDegree(240, staticDegree: hsbaT.h*360)/360.0, hsbaT.s, hsbaT.b, hsbaT.a)),
                 Color(hsba: (self.addDegree(240, staticDegree: hsbaT.h*360)/360.0, 2*hsbaT.s/3, hsbaT.b-0.05, hsbaT.a))]
     }
     
-    private class func complementaryColors(hsbaT: (h: CGFloat, s: CGFloat, b: CGFloat, a: CGFloat)) -> [Color] {
+    fileprivate class func complementaryColors(_ hsbaT: (h: CGFloat, s: CGFloat, b: CGFloat, a: CGFloat)) -> [Color] {
         return [Color(hsba: (hsbaT.h, hsbaT.s, 4*hsbaT.b/5, hsbaT.a)),
                 Color(hsba: (hsbaT.h, 5*hsbaT.s/7, hsbaT.b, hsbaT.a)),
                 Color(hsba: (self.addDegree(180, staticDegree: hsbaT.h*360)/360.0, hsbaT.s, hsbaT.b, hsbaT.a)),
@@ -330,526 +333,526 @@ public extension Color {
     // MARK: - Predefined Colors
     // MARK: -
     // MARK: System Colors
-    class func infoBlueColor() -> Color
+    class var infoBlue: Color
     {
         return self.colorWith(47, G:112, B:225, A:1.0)
     }
     
-    class func successColor() -> Color
+    class var success: Color
     {
         return self.colorWith(83, G:215, B:106, A:1.0)
     }
     
-    class func warningColor() -> Color
+    class var warning: Color
     {
         return self.colorWith(221, G:170, B:59, A:1.0)
     }
     
-    class func dangerColor() -> Color
+    class var danger: Color
     {
         return self.colorWith(229, G:0, B:15, A:1.0)
     }
     
     
     // MARK: Whites
-    class func antiqueWhiteColor() -> Color
+    class var antiqueWhite: Color
     {
         return self.colorWith(250, G:235, B:215, A:1.0)
     }
     
-    class func oldLaceColor() -> Color
+    class var oldLace: Color
     {
         return self.colorWith(253, G:245, B:230, A:1.0)
     }
     
-    class func ivoryColor() -> Color
+    class var ivory: Color
     {
         return self.colorWith(255, G:255, B:240, A:1.0)
     }
     
-    class func seashellColor() -> Color
+    class var seashell: Color
     {
         return self.colorWith(255, G:245, B:238, A:1.0)
     }
     
-    class func ghostWhiteColor() -> Color
+    class var ghostWhite: Color
     {
         return self.colorWith(248, G:248, B:255, A:1.0)
     }
     
-    class func snowColor() -> Color
+    class var snow: Color
     {
         return self.colorWith(255, G:250, B:250, A:1.0)
     }
     
-    class func linenColor() -> Color
+    class var linen: Color
     {
         return self.colorWith(250, G:240, B:230, A:1.0)
     }
     
     
     // MARK: Grays
-    class func black25PercentColor() -> Color
+    class var black25Percent: Color
     {
         return Color(white:0.25, alpha:1.0)
     }
     
-    class func black50PercentColor() -> Color
+    class var black50Percent: Color
     {
         return Color(white:0.5,  alpha:1.0)
     }
     
-    class func black75PercentColor() -> Color
+    class var black75Percent: Color
     {
         return Color(white:0.75, alpha:1.0)
     }
     
-    class func warmGrayColor() -> Color
+    class var warmGray: Color
     {
         return self.colorWith(133, G:117, B:112, A:1.0)
     }
     
-    class func coolGrayColor() -> Color
+    class var coolGray: Color
     {
         return self.colorWith(118, G:122, B:133, A:1.0)
     }
     
-    class func charcoalColor() -> Color
+    class var charcoal: Color
     {
         return self.colorWith(34, G:34, B:34, A:1.0)
     }
     
     
     // MARK: Blues
-    class func tealColor() -> Color
+    class var teal: Color
     {
         return self.colorWith(28, G:160, B:170, A:1.0)
     }
     
-    class func steelBlueColor() -> Color
+    class var steelBlue: Color
     {
         return self.colorWith(103, G:153, B:170, A:1.0)
     }
     
-    class func robinEggColor() -> Color
+    class var robinEgg: Color
     {
         return self.colorWith(141, G:218, B:247, A:1.0)
     }
     
-    class func pastelBlueColor() -> Color
+    class var pastelBlue: Color
     {
         return self.colorWith(99, G:161, B:247, A:1.0)
     }
     
-    class func turquoiseColor() -> Color
+    class var turquoise: Color
     {
         return self.colorWith(112, G:219, B:219, A:1.0)
     }
     
-    class func skyBlueColor() -> Color
+    class var skyBlue: Color
     {
         return self.colorWith(0, G:178, B:238, A:1.0)
     }
     
-    class func indigoColor() -> Color
+    class var indigo: Color
     {
         return self.colorWith(13, G:79, B:139, A:1.0)
     }
     
-    class func denimColor() -> Color
+    class var denim: Color
     {
         return self.colorWith(67, G:114, B:170, A:1.0)
     }
     
-    class func blueberryColor() -> Color
+    class var blueberry: Color
     {
         return self.colorWith(89, G:113, B:173, A:1.0)
     }
     
-    class func cornflowerColor() -> Color
+    class var cornflower: Color
     {
         return self.colorWith(100, G:149, B:237, A:1.0)
     }
     
-    class func babyBlueColor() -> Color
+    class var babyBlue: Color
     {
         return self.colorWith(190, G:220, B:230, A:1.0)
     }
     
-    class func midnightBlueColor() -> Color
+    class var midnightBlue: Color
     {
         return self.colorWith(13, G:26, B:35, A:1.0)
     }
     
-    class func fadedBlueColor() -> Color
+    class var fadedBlue: Color
     {
         return self.colorWith(23, G:137, B:155, A:1.0)
     }
     
-    class func icebergColor() -> Color
+    class var iceberg: Color
     {
         return self.colorWith(200, G:213, B:219, A:1.0)
     }
     
-    class func waveColor() -> Color
+    class var wave: Color
     {
         return self.colorWith(102, G:169, B:251, A:1.0)
     }
     
     
     // MARK: Greens
-    class func emeraldColor() -> Color
+    class var emerald: Color
     {
         return self.colorWith(1, G:152, B:117, A:1.0)
     }
     
-    class func grassColor() -> Color
+    class var grass: Color
     {
         return self.colorWith(99, G:214, B:74, A:1.0)
     }
     
-    class func pastelGreenColor() -> Color
+    class var pastelGreen: Color
     {
         return self.colorWith(126, G:242, B:124, A:1.0)
     }
     
-    class func seafoamColor() -> Color
+    class var seafoam: Color
     {
         return self.colorWith(77, G:226, B:140, A:1.0)
     }
     
-    class func paleGreenColor() -> Color
+    class var paleGreen: Color
     {
         return self.colorWith(176, G:226, B:172, A:1.0)
     }
     
-    class func cactusGreenColor() -> Color
+    class var cactusGreen: Color
     {
         return self.colorWith(99, G:111, B:87, A:1.0)
     }
     
-    class func chartreuseColor() -> Color
+    class var chartreuse: Color
     {
         return self.colorWith(69, G:139, B:0, A:1.0)
     }
     
-    class func hollyGreenColor() -> Color
+    class var hollyGreen: Color
     {
         return self.colorWith(32, G:87, B:14, A:1.0)
     }
     
-    class func oliveColor() -> Color
+    class var olive: Color
     {
         return self.colorWith(91, G:114, B:34, A:1.0)
     }
     
-    class func oliveDrabColor() -> Color
+    class var oliveDrab: Color
     {
         return self.colorWith(107, G:142, B:35, A:1.0)
     }
     
-    class func moneyGreenColor() -> Color
+    class var moneyGreen: Color
     {
         return self.colorWith(134, G:198, B:124, A:1.0)
     }
     
-    class func honeydewColor() -> Color
+    class var honeydew: Color
     {
         return self.colorWith(216, G:255, B:231, A:1.0)
     }
     
-    class func limeColor() -> Color
+    class var lime: Color
     {
         return self.colorWith(56, G:237, B:56, A:1.0)
     }
     
-    class func cardTableColor() -> Color
+    class var cardTable: Color
     {
         return self.colorWith(87, G:121, B:107, A:1.0)
     }
     
     
     // MARK: Reds
-    class func salmonColor() -> Color
+    class var salmon: Color
     {
         return self.colorWith(233, G:87, B:95, A:1.0)
     }
     
-    class func brickRedColor() -> Color
+    class var brickRed: Color
     {
         return self.colorWith(151, G:27, B:16, A:1.0)
     }
     
-    class func easterPinkColor() -> Color
+    class var easterPink: Color
     {
         return self.colorWith(241, G:167, B:162, A:1.0)
     }
     
-    class func grapefruitColor() -> Color
+    class var grapefruit: Color
     {
         return self.colorWith(228, G:31, B:54, A:1.0)
     }
     
-    class func pinkColor() -> Color
+    class var pink: Color
     {
         return self.colorWith(255, G:95, B:154, A:1.0)
     }
     
-    class func indianRedColor() -> Color
+    class var indianRed: Color
     {
         return self.colorWith(205, G:92, B:92, A:1.0)
     }
     
-    class func strawberryColor() -> Color
+    class var strawberry: Color
     {
         return self.colorWith(190, G:38, B:37, A:1.0)
     }
     
-    class func coralColor() -> Color
+    class var coral: Color
     {
         return self.colorWith(240, G:128, B:128, A:1.0)
     }
     
-    class func maroonColor() -> Color
+    class var maroon: Color
     {
         return self.colorWith(80, G:4, B:28, A:1.0)
     }
     
-    class func watermelonColor() -> Color
+    class var watermelon: Color
     {
         return self.colorWith(242, G:71, B:63, A:1.0)
     }
     
-    class func tomatoColor() -> Color
+    class var tomato: Color
     {
         return self.colorWith(255, G:99, B:71, A:1.0)
     }
     
-    class func pinkLipstickColor() -> Color
+    class var pinkLipstick: Color
     {
         return self.colorWith(255, G:105, B:180, A:1.0)
     }
     
-    class func paleRoseColor() -> Color
+    class var paleRose: Color
     {
         return self.colorWith(255, G:228, B:225, A:1.0)
     }
     
-    class func crimsonColor() -> Color
+    class var crimson: Color
     {
         return self.colorWith(187, G:18, B:36, A:1.0)
     }
     
     
     // MARK: Purples
-    class func eggplantColor() -> Color
+    class var eggplant: Color
     {
         return self.colorWith(105, G:5, B:98, A:1.0)
     }
     
-    class func pastelPurpleColor() -> Color
+    class var pastelPurple: Color
     {
         return self.colorWith(207, G:100, B:235, A:1.0)
     }
     
-    class func palePurpleColor() -> Color
+    class var palePurple: Color
     {
         return self.colorWith(229, G:180, B:235, A:1.0)
     }
     
-    class func coolPurpleColor() -> Color
+    class var coolPurple: Color
     {
         return self.colorWith(140, G:93, B:228, A:1.0)
     }
     
-    class func violetColor() -> Color
+    class var violet: Color
     {
         return self.colorWith(191, G:95, B:255, A:1.0)
     }
     
-    class func plumColor() -> Color
+    class var plum: Color
     {
         return self.colorWith(139, G:102, B:139, A:1.0)
     }
     
-    class func lavenderColor() -> Color
+    class var lavender: Color
     {
         return self.colorWith(204, G:153, B:204, A:1.0)
     }
     
-    class func raspberryColor() -> Color
+    class var raspberry: Color
     {
         return self.colorWith(135, G:38, B:87, A:1.0)
     }
     
-    class func fuschiaColor() -> Color
+    class var fuschia: Color
     {
         return self.colorWith(255, G:20, B:147, A:1.0)
     }
     
-    class func grapeColor() -> Color
+    class var grape: Color
     {
         return self.colorWith(54, G:11, B:88, A:1.0)
     }
     
-    class func periwinkleColor() -> Color
+    class var periwinkle: Color
     {
         return self.colorWith(135, G:159, B:237, A:1.0)
     }
     
-    class func orchidColor() -> Color
+    class var orchid: Color
     {
         return self.colorWith(218, G:112, B:214, A:1.0)
     }
     
     
     // MARK: Yellows
-    class func goldenrodColor() -> Color
+    class var goldenrod: Color
     {
         return self.colorWith(215, G:170, B:51, A:1.0)
     }
     
-    class func yellowGreenColor() -> Color
+    class var yellowGreen: Color
     {
         return self.colorWith(192, G:242, B:39, A:1.0)
     }
     
-    class func bananaColor() -> Color
+    class var banana: Color
     {
         return self.colorWith(229, G:227, B:58, A:1.0)
     }
     
-    class func mustardColor() -> Color
+    class var mustard: Color
     {
         return self.colorWith(205, G:171, B:45, A:1.0)
     }
     
-    class func buttermilkColor() -> Color
+    class var buttermilk: Color
     {
         return self.colorWith(254, G:241, B:181, A:1.0)
     }
     
-    class func goldColor() -> Color
+    class var gold: Color
     {
         return self.colorWith(139, G:117, B:18, A:1.0)
     }
     
-    class func creamColor() -> Color
+    class var cream: Color
     {
         return self.colorWith(240, G:226, B:187, A:1.0)
     }
     
-    class func lightCreamColor() -> Color
+    class var lightCream: Color
     {
         return self.colorWith(240, G:238, B:215, A:1.0)
     }
     
-    class func wheatColor() -> Color
+    class var wheat: Color
     {
         return self.colorWith(240, G:238, B:215, A:1.0)
     }
     
-    class func beigeColor() -> Color
+    class var beige: Color
     {
         return self.colorWith(245, G:245, B:220, A:1.0)
     }
     
     
     // MARK: Oranges
-    class func peachColor() -> Color
+    class var peach: Color
     {
         return self.colorWith(242, G:187, B:97, A:1.0)
     }
     
-    class func burntOrangeColor() -> Color
+    class var burntOrange: Color
     {
         return self.colorWith(184, G:102, B:37, A:1.0)
     }
     
-    class func pastelOrangeColor() -> Color
+    class var pastelOrange: Color
     {
         return self.colorWith(248, G:197, B:143, A:1.0)
     }
     
-    class func cantaloupeColor() -> Color
+    class var cantaloupe: Color
     {
         return self.colorWith(250, G:154, B:79, A:1.0)
     }
     
-    class func carrotColor() -> Color
+    class var carrot: Color
     {
         return self.colorWith(237, G:145, B:33, A:1.0)
     }
     
-    class func mandarinColor() -> Color
+    class var mandarin: Color
     {
         return self.colorWith(247, G:145, B:55, A:1.0)
     }
     
     
     // MARK: Browns
-    class func chiliPowderColor() -> Color
+    class var chiliPowder: Color
     {
         return self.colorWith(199, G:63, B:23, A:1.0)
     }
     
-    class func burntSiennaColor() -> Color
+    class var burntSienna: Color
     {
         return self.colorWith(138, G:54, B:15, A:1.0)
     }
     
-    class func chocolateColor() -> Color
+    class var chocolate: Color
     {
         return self.colorWith(94, G:38, B:5, A:1.0)
     }
     
-    class func coffeeColor() -> Color
+    class var coffee: Color
     {
         return self.colorWith(141, G:60, B:15, A:1.0)
     }
     
-    class func cinnamonColor() -> Color
+    class var cinnamon: Color
     {
         return self.colorWith(123, G:63, B:9, A:1.0)
     }
     
-    class func almondColor() -> Color
+    class var almond: Color
     {
         return self.colorWith(196, G:142, B:72, A:1.0)
     }
     
-    class func eggshellColor() -> Color
+    class var eggshell: Color
     {
         return self.colorWith(252, G:230, B:201, A:1.0)
     }
     
-    class func sandColor() -> Color
+    class var sand: Color
     {
         return self.colorWith(222, G:182, B:151, A:1.0)
     }
     
-    class func mudColor() -> Color
+    class var mud: Color
     {
         return self.colorWith(70, G:45, B:29, A:1.0)
     }
     
-    class func siennaColor() -> Color
+    class var sienna: Color
     {
         return self.colorWith(160, G:82, B:45, A:1.0)
     }
     
-    class func dustColor() -> Color
+    class var dust: Color
     {
         return self.colorWith(236, G:214, B:197, A:1.0)
     }
 
     
     // MARK: - Private Helpers
-    private class func colorWith(R: CGFloat, G: CGFloat, B: CGFloat, A: CGFloat) -> Color {
+    fileprivate class func colorWith(_ R: CGFloat, G: CGFloat, B: CGFloat, A: CGFloat) -> Color {
         return Color(rgba: (R/255.0, G/255.0, B/255.0, A))
     }
     
-    private class func addDegree(addDegree: CGFloat, staticDegree: CGFloat) -> CGFloat {
+    fileprivate class func addDegree(_ addDegree: CGFloat, staticDegree: CGFloat) -> CGFloat {
         let s = staticDegree + addDegree;
         if (s > 360) {
             return s - 360;
